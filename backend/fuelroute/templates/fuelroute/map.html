@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fuel route</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <style>
+    :root {
+      --asphalt: #243044;
+      --paper: #e6edf2;
+      --ink: #1b2838;
+      --blue: #2457a6;
+      --green: #1f7a4d;
+      --steel: #5e7082;
+      --line: #c5d0db;
+      --ticket: #f4f7f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+    }
+
+    button, input { font: inherit; }
+
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      min-height: 72px;
+      padding: 12px 20px;
+      background: var(--asphalt);
+      color: white;
+      position: relative;
+      z-index: 500;
+    }
+
+    .brand {
+      min-width: 140px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .brand p {
+      margin: 2px 0 0;
+      color: #b7c3d1;
+      font-size: 13px;
+    }
+
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+      flex: 1;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      color: #d5dee8;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      position: relative;
+    }
+
+    .suggest {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 2;
+      background: white;
+      border-radius: 2px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+
+    .suggest button {
+      display: block;
+      width: 100%;
+      height: auto;
+      padding: 8px 10px;
+      background: white;
+      color: var(--ink);
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      letter-spacing: 0;
+      text-align: left;
+      text-transform: none;
+      border-radius: 0;
+    }
+
+    .suggest button:hover,
+    .suggest button.active { background: #e7eef5; }
+
+    input[type="text"] {
+      width: 220px;
+      height: 38px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 2px;
+      background: white;
+      color: var(--ink);
+    }
+
+    input:focus-visible, button:focus-visible {
+      outline: 2px solid #f2c14e;
+      outline-offset: 2px;
+    }
+
+    button {
+      height: 38px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 2px;
+      background: var(--green);
+      color: white;
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+
+    button:hover { background: #18643e; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      height: calc(100% - 72px);
+      min-height: 480px;
+    }
+
+    #map { height: 100%; min-height: 420px; background: #d5dee6; }
+
+    .log {
+      display: flex;
+      flex-direction: column;
+      background: var(--ticket);
+      border-left: 1px solid var(--line);
+      min-height: 0;
+    }
+
+    .log-body {
+      padding: 18px 18px 8px;
+      overflow: auto;
+      flex: 1;
+    }
+
+    .leg {
+      margin: 0;
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 28px;
+      line-height: 1.05;
+      font-weight: 700;
+    }
+
+    .meta, .note, .empty, .none {
+      color: var(--steel);
+      line-height: 1.45;
+    }
+
+    .meta { margin: 8px 0 0; }
+
+    .note { margin: 6px 0 16px; font-size: 13px; }
+
+    ol {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    li {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 8px 10px;
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .num {
+      grid-row: span 2;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--green);
+      color: white;
+      border-radius: 3px;
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .who { margin: 0; font-weight: 700; }
+    .where, .buy { margin: 2px 0 0; color: var(--steel); font-size: 14px; }
+
+    .dollars {
+      margin: 0;
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .mile {
+      margin: 0;
+      color: var(--steel);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .total {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 14px 18px;
+      background: var(--ink);
+      color: white;
+    }
+
+    .total span { color: #c5d0db; font-size: 14px; }
+
+    .total strong {
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .error {
+      margin: 0;
+      padding: 12px;
+      background: #f8e6df;
+      color: #8e2f12;
+    }
+
+    .mile-marker { background: transparent; border: none; }
+    .mile-marker .shield {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--green);
+      color: white;
+      border-radius: 3px;
+      box-shadow: 0 0 0 2px white;
+      font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 800px) {
+      .top { align-items: stretch; flex-direction: column; }
+      .workspace { grid-template-columns: 1fr; height: auto; }
+      #map { height: 58vh; }
+      input[type="text"] { width: 100%; }
+      label { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Fuel route</h1>
+      <p>US truck stops</p>
+    </div>
+    <form action="/map/" method="get">
+      <label>Start
+        <input type="text" name="start" value="{{ start }}" placeholder="Chicago, IL" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" required>
+        <div class="suggest" hidden></div>
+      </label>
+      <label>Finish
+        <input type="text" name="finish" value="{{ finish }}" placeholder="Dallas, TX" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" required>
+        <div class="suggest" hidden></div>
+      </label>
+      <button type="submit">Show route</button>
+    </form>
+  </header>
+
+  <div class="workspace">
+    <div id="map"></div>
+    <aside class="log">
+      <div class="log-body">
+        {% if error %}
+          <p class="error">{{ error }}</p>
+        {% elif trip %}
+          <p class="leg">{{ trip.start.label }} to {{ trip.finish.label }}</p>
+          <p class="meta">{{ trip.distance_miles }} miles · {{ duration_text }}</p>
+          <p class="note">10 mpg. 500-mile tank, full at the start. Fuel already in the tank is not counted.</p>
+          {% if trip.fuel_stops %}
+            <ol>
+              {% for stop in trip.fuel_stops %}
+                <li>
+                  <span class="num">{{ forloop.counter }}</span>
+                  <div>
+                    <p class="who">{{ stop.name }}</p>
+                    <p class="where">{{ stop.address }} · {{ stop.city }}, {{ stop.state }}</p>
+                    <p class="buy">${{ stop.price_per_gallon|floatformat:3 }} / gal · {{ stop.gallons|floatformat:2 }} gal</p>
+                  </div>
+                  <div>
+                    <p class="dollars">${{ stop.cost|floatformat:2 }}</p>
+                    <p class="mile">mile {{ stop.mile_marker|floatformat:0 }}</p>
+                  </div>
+                </li>
+              {% endfor %}
+            </ol>
+          {% else %}
+            <p class="none">The starting tank covers this trip. Nothing to buy.</p>
+          {% endif %}
+        {% else %}
+          <p class="leg">Where to fill up</p>
+          <p class="empty">Enter two places in the US. The map draws the drive and the stops that cost the least without running the tank dry.</p>
+        {% endif %}
+      </div>
+      {% if trip %}
+        <div class="total">
+          <span>Fuel bought<br>{{ trip.total_gallons|floatformat:2 }} gal</span>
+          <strong>${{ trip.total_cost|floatformat:2 }}</strong>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+
+  {{ trip|json_script:"trip-data" }}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+    const tripNode = document.getElementById("trip-data");
+    const trip = tripNode ? JSON.parse(tripNode.textContent) : null;
+    const map = L.map("map");
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri · routes by OSRM, data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    function shield(number) {
+      return L.divIcon({
+        className: "mile-marker",
+        html: `<div class="shield">${number}</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+    }
+
+    if (trip && trip.route && trip.route.coordinates.length > 1) {
+      const line = trip.route.coordinates.map(([lon, lat]) => [lat, lon]);
+      const route = L.polyline(line, { color: "#2457a6", weight: 5, opacity: 0.92 }).addTo(map);
+      L.circleMarker([trip.start.latitude, trip.start.longitude], {
+        radius: 6, color: "#243044", weight: 2, fillColor: "#ffffff", fillOpacity: 1
+      }).addTo(map).bindTooltip(trip.start.label, { direction: "top" });
+      L.circleMarker([trip.finish.latitude, trip.finish.longitude], {
+        radius: 6, color: "#243044", weight: 2, fillColor: "#f2c14e", fillOpacity: 1
+      }).addTo(map).bindTooltip(trip.finish.label, { direction: "top" });
+      trip.fuel_stops.forEach((stop, index) => {
+        const price = Number(stop.price_per_gallon).toFixed(3);
+        L.marker([stop.latitude, stop.longitude], { icon: shield(index + 1) })
+          .addTo(map)
+          .bindPopup(`<strong>${stop.name}</strong><br>${stop.city}, ${stop.state}<br>$${price} / gal · $${Number(stop.cost).toFixed(2)}`);
+      });
+      map.fitBounds(route.getBounds(), { padding: [28, 28] });
+    } else {
+      map.setView([39.5, -98.35], 4);
+    }
+
+    document.querySelectorAll("form label input").forEach((input) => {
+      const box = input.parentElement.querySelector(".suggest");
+      let timer = null;
+      let active = -1;
+
+      function close() {
+        box.hidden = true;
+        box.replaceChildren();
+        active = -1;
+        input.setAttribute("aria-expanded", "false");
+      }
+
+      function mark() {
+        const buttons = box.querySelectorAll("button");
+        buttons.forEach((button, index) => button.classList.toggle("active", index === active));
+        if (buttons[active]) buttons[active].scrollIntoView({ block: "nearest" });
+      }
+
+      input.addEventListener("input", () => {
+        window.clearTimeout(timer);
+        const query = input.value.trim();
+        if (query.length < 2) {
+          close();
+          return;
+        }
+        timer = window.setTimeout(async () => {
+          try {
+            const response = await fetch("/api/places/?q=" + encodeURIComponent(query));
+            if (!response.ok || input.value.trim() !== query) return;
+            const data = await response.json();
+            const places = data.places || [];
+            if (!places.length || input.value.trim() !== query) {
+              close();
+              return;
+            }
+            active = -1;
+            box.replaceChildren();
+            places.forEach((place) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.textContent = place;
+              button.addEventListener("mousedown", (event) => {
+                event.preventDefault();
+                input.value = place;
+                close();
+              });
+              box.appendChild(button);
+            });
+            box.hidden = false;
+            input.setAttribute("aria-expanded", "true");
+          } catch (error) {
+            close();
+          }
+        }, 120);
+      });
+
+      input.addEventListener("keydown", (event) => {
+        const buttons = [...box.querySelectorAll("button")];
+        if (box.hidden || !buttons.length) return;
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          active = Math.min(active + 1, buttons.length - 1);
+          mark();
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          active = Math.max(active - 1, 0);
+          mark();
+        } else if (event.key === "Enter" && active >= 0) {
+          event.preventDefault();
+          input.value = buttons[active].textContent;
+          close();
+        } else if (event.key === "Escape") {
+          close();
+        }
+      });
+
+      input.addEventListener("blur", () => close());
+    });
+  </script>
+</body>
+</html>
